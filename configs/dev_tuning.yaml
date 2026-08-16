@@ -1,0 +1,12 @@
+name: dev_tuning
+split: dev
+tuning: true
+strategy: hybrid_rerank
+chunking: structural_256_o32
+embedding_provider: local
+reranker_provider: local
+top_k: 20
+candidate_depth: 100
+rrf_k: 60
+rerank_candidates: 50
+seed: 42

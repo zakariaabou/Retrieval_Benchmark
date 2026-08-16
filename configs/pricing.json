@@ -1,0 +1,7 @@
+{
+  "as_of": "2026-08-16",
+  "openai_embedding_per_million_tokens": 0.02,
+  "cohere_rerank_per_1000_searches": 2.0,
+  "local_machine_per_hour": 0.0,
+  "note": "Illustrative snapshot. Verify vendor pricing before a paid benchmark run."
+}

@@ -1,0 +1,12 @@
+name: hosted_hybrid_rerank
+split: test
+tuning: false
+strategy: hybrid_rerank
+chunking: fixed_256_o32
+embedding_provider: openai
+reranker_provider: cohere
+top_k: 20
+candidate_depth: 100
+rrf_k: 60
+rerank_candidates: 50
+seed: 42

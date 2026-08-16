@@ -1,0 +1,91 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "retrieval-benchmark"
+version = "0.1.0"
+description = "Reproducible lexical, dense, hybrid, and reranked retrieval benchmark"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = {text = "MIT"}
+dependencies = [
+  "beautifulsoup4>=4.12,<5",
+  "fastapi>=0.115,<1",
+  "httpx>=0.27,<1",
+  "numpy>=1.26,<3",
+  "pandas>=2.2,<3",
+  "psutil>=6,<8",
+  "pydantic>=2.10,<3",
+  "pydantic-settings>=2.7,<3",
+  "pyyaml>=6,<7",
+  "sqlalchemy[asyncio]>=2.0,<3",
+  "asyncpg>=0.30,<1",
+  "typer>=0.15,<1",
+  "uvicorn[standard]>=0.34,<1",
+]
+
+[project.optional-dependencies]
+local-models = ["sentence-transformers>=3.3,<6"]
+hosted = ["openai>=1.59,<3", "cohere>=5.13,<6"]
+tracking = ["mlflow>=3,<4", "matplotlib>=3.9,<4", "psycopg[binary]>=3.2,<4"]
+dev = [
+  "coverage[toml]>=7.6,<8",
+  "mypy>=1.14,<2",
+  "pytest>=8.3,<10",
+  "pytest-asyncio>=0.25,<2",
+  "pytest-cov>=6,<8",
+  "ruff>=0.9,<1",
+]
+
+[project.scripts]
+retrieval-benchmark = "retrieval_benchmark.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/retrieval_benchmark"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.coverage.run]
+source = ["retrieval_benchmark"]
+branch = true
+omit = [
+  "src/retrieval_benchmark/cli.py",
+  "src/retrieval_benchmark/database.py",
+  "src/retrieval_benchmark/providers.py",
+  "src/retrieval_benchmark/settings.py",
+  "src/retrieval_benchmark/tracking.py",
+  "src/retrieval_benchmark/worker.py",
+]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+skip_covered = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "ASYNC"]
+ignore = [
+  "S101",
+  # Dynamic identifiers are selected exclusively from internal fixed allowlists.
+  "S608",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"src/retrieval_benchmark/tracking.py" = ["S607"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["retrieval_benchmark"]
+
+[[tool.mypy.overrides]]
+module = ["cohere", "mlflow", "openai", "pandas", "sentence_transformers", "yaml"]
+ignore_missing_imports = true

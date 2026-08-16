@@ -1,0 +1,67 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: benchmark
+      POSTGRES_USER: benchmark
+      POSTGRES_PASSWORD: benchmark
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U benchmark -d benchmark"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    ports: ["127.0.0.1:5432:5432"]
+
+  mlflow:
+    build:
+      context: .
+      target: mlflow
+    depends_on:
+      postgres: {condition: service_healthy}
+    volumes: ["mlflow-artifacts:/mlartifacts"]
+    ports: ["127.0.0.1:5000:5000"]
+
+  api:
+    build:
+      context: .
+      target: api
+    environment:
+      RB_USE_DATABASE: "true"
+      RB_DATABASE_URL: postgresql+asyncpg://benchmark:benchmark@postgres:5432/benchmark
+      RB_MLFLOW_TRACKING_URI: http://mlflow:5000
+      RB_OPENAI_API_KEY: ${RB_OPENAI_API_KEY:-}
+      RB_COHERE_API_KEY: ${RB_COHERE_API_KEY:-}
+    depends_on:
+      postgres: {condition: service_healthy}
+      mlflow: {condition: service_started}
+    volumes:
+      - ./datasets:/app/datasets
+      - ./reports:/app/reports
+      - model-cache:/root/.cache
+    ports: ["127.0.0.1:8000:8000"]
+
+  worker:
+    build:
+      context: .
+      target: worker
+    environment:
+      RB_USE_DATABASE: "true"
+      RB_DATABASE_URL: postgresql+asyncpg://benchmark:benchmark@postgres:5432/benchmark
+      RB_MLFLOW_TRACKING_URI: http://mlflow:5000
+      RB_OPENAI_API_KEY: ${RB_OPENAI_API_KEY:-}
+      RB_COHERE_API_KEY: ${RB_COHERE_API_KEY:-}
+    depends_on:
+      postgres: {condition: service_healthy}
+      mlflow: {condition: service_started}
+    volumes:
+      - ./datasets:/app/datasets
+      - ./reports:/app/reports
+      - model-cache:/root/.cache
+
+volumes:
+  postgres-data:
+  mlflow-artifacts:
+  model-cache:

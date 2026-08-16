@@ -1,0 +1,12 @@
+name: local_dense_exact
+split: test
+tuning: false
+strategy: dense_exact
+chunking: fixed_256_o32
+embedding_provider: local
+reranker_provider: none
+top_k: 20
+candidate_depth: 100
+rrf_k: 60
+rerank_candidates: 50
+seed: 42

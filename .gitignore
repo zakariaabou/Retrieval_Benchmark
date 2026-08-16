@@ -1,0 +1,17 @@
+.env
+.cache/
+.coverage
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+datasets/raw/
+datasets/processed/
+datasets/evaluation/all.jsonl
+reports/generated/
+mlruns/
+
