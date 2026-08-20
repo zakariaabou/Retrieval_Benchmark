@@ -43,6 +43,7 @@ class PostgresRetriever:
         candidate_depth: int = 100,
         ef_search: int = 40,
         distance: str = "cosine",
+        rerank_candidates: int = 50,
     ) -> None:
         self.engine = engine
         self.chunking = chunking
@@ -53,6 +54,7 @@ class PostgresRetriever:
         self.candidate_depth = candidate_depth
         self.ef_search = ef_search
         self.distance = distance
+        self.rerank_candidates = rerank_candidates
 
     @staticmethod
     def _filter_sql(filters: Mapping[str, str]) -> tuple[str, dict[str, str]]:
@@ -129,8 +131,9 @@ class PostgresRetriever:
             return await self.lexical(query, top_k, filters)
         if self.strategy in {"dense_exact", "dense_hnsw"}:
             return await self.dense(query, top_k, self.strategy == "dense_exact", filters)
-        lexical = await self.lexical(query, self.candidate_depth, filters)
-        dense = await self.dense(query, self.candidate_depth, False, filters)
+        search_depth = max(self.candidate_depth, top_k)
+        lexical = await self.lexical(query, search_depth, filters)
+        dense = await self.dense(query, search_depth, False, filters)
         lookup = {item.chunk_id: item for item in [*lexical, *dense]}
         fused = reciprocal_rank_fusion(
             [[item.chunk_id for item in lexical], [item.chunk_id for item in dense]], self.rrf_k
@@ -145,11 +148,13 @@ class PostgresRetriever:
                     },
                 }
             )
-            for item in fused[: self.candidate_depth]
+            for item in fused[:search_depth]
         ]
         if self.strategy == "hybrid_rerank":
             if self.reranker is None:
                 raise RuntimeError("hybrid_rerank requires a reranker")
+            rerank_depth = min(len(results), max(top_k, self.rerank_candidates))
+            results = results[:rerank_depth]
             scores = await self.reranker.rerank(query, [item.text for item in results])
             results = sorted(
                 [

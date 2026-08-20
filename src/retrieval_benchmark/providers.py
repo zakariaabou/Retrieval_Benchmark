@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 from pathlib import Path
@@ -52,13 +53,15 @@ class CachedEmbedder:
         output: list[list[float] | None] = [self.cache.get(self.name, text) for text in texts]
         missing_positions = [index for index, item in enumerate(output) if item is None]
         if missing_positions:
-            missing = [texts[index] for index in missing_positions]
+            missing = list(dict.fromkeys(texts[index] for index in missing_positions))
             generated = await self.provider.embed(missing)
             if len(generated) != len(missing):
                 raise RuntimeError("embedding provider returned an unexpected result count")
-            for index, vector in zip(missing_positions, generated, strict=True):
-                output[index] = vector
-                self.cache.set(self.name, texts[index], vector)
+            generated_by_text = dict(zip(missing, generated, strict=True))
+            for text, vector in generated_by_text.items():
+                self.cache.set(self.name, text, vector)
+            for index in missing_positions:
+                output[index] = generated_by_text[texts[index]]
         return [item for item in output if item is not None]
 
 
@@ -75,7 +78,7 @@ class LocalBGEEmbedder:
         self._model = SentenceTransformer("BAAI/bge-small-en-v1.5", revision=revision)
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
-        vectors = self._model.encode(texts, normalize_embeddings=True)
+        vectors = await asyncio.to_thread(self._model.encode, texts, normalize_embeddings=True)
         return cast(list[list[float]], vectors.tolist())
 
 
@@ -109,7 +112,9 @@ class LocalCrossEncoderReranker:
         self._model = CrossEncoder("cross-encoder/ms-marco-MiniLM-L6-v2", revision=revision)
 
     async def rerank(self, query: str, documents: list[str]) -> list[float]:
-        scores = self._model.predict([(query, document) for document in documents]).tolist()
+        pairs = [(query, document) for document in documents]
+        predictions = await asyncio.to_thread(self._model.predict, pairs)
+        scores = predictions.tolist()
         return cast(list[float], scores)
 
 

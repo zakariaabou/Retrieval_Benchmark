@@ -50,3 +50,46 @@ def test_hybrid_and_reranked_search_use_rrf_candidates() -> None:
         assert [item.chunk_id for item in await retriever.search("q", 3)] == ["a", "c", "b"]
 
     asyncio.run(run())
+
+
+def test_reranker_receives_only_configured_candidate_window() -> None:
+    import asyncio
+    import types
+
+    class RecordingReranker:
+        name = "recording"
+
+        def __init__(self) -> None:
+            self.documents: list[str] = []
+
+        async def rerank(self, query: str, documents: list[str]) -> list[float]:
+            self.documents = documents
+            return [float(index) for index, _document in enumerate(documents)]
+
+    async def run() -> None:
+        reranker = RecordingReranker()
+        retriever = PostgresRetriever(
+            object(),
+            "fixed",
+            "hybrid_rerank",
+            reranker=reranker,
+            candidate_depth=4,
+            rerank_candidates=2,
+        )
+
+        async def lexical(self, query, top_k, filters=None):
+            return [
+                SearchResult(chunk_id=value, document_id="d", text=value, score=1)
+                for value in ["a", "b", "c", "d"]
+            ]
+
+        async def dense(self, query, top_k, exact, filters=None):
+            return []
+
+        retriever.lexical = types.MethodType(lexical, retriever)
+        retriever.dense = types.MethodType(dense, retriever)
+        await retriever.search("q", 1)
+
+        assert reranker.documents == ["a", "b"]
+
+    asyncio.run(run())

@@ -31,6 +31,11 @@ class PythonDocsParser:
         current_heading = title
         current_parts: list[str] = []
         for node in main.find_all(["h1", "h2", "h3", "p", "pre", "li"], recursive=True):
+            if any(
+                parent is not main and getattr(parent, "name", None) in {"p", "pre", "li"}
+                for parent in node.parents
+            ):
+                continue
             if node.name in {"h1", "h2", "h3"}:
                 if current_parts:
                     sections.append({"heading": current_heading, "text": "\n".join(current_parts)})

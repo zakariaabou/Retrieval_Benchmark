@@ -17,6 +17,13 @@ class Chunker:
             return self._structural(document, config)
         return self._fixed(document, config, document.text.split(), heading=None, base_offset=0)
 
+    @staticmethod
+    def _metadata(document: Document) -> dict[str, object]:
+        metadata = dict(document.metadata)
+        if document.module is not None:
+            metadata["module"] = document.module
+        return metadata
+
     def _fixed(
         self,
         document: Document,
@@ -42,7 +49,7 @@ class Chunker:
                     token_end=base_offset + end,
                     source_uri=document.source_uri,
                     heading=heading,
-                    metadata=document.metadata,
+                    metadata=self._metadata(document),
                 )
             )
             if end == len(tokens):

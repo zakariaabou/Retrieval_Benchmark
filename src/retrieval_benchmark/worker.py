@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -41,11 +42,23 @@ def _embedder(provider: str) -> CachedEmbedder:
 async def _build_index(engine: Any, payload: dict[str, object]) -> dict[str, object]:
     settings = get_settings()
     documents = load_documents(settings.data_directory / "processed" / "documents.jsonl")
+    if not documents:
+        raise ValueError("processed corpus contains no documents")
+    corpus_version = str(payload["corpus_version"])
+    mismatched = [
+        document.id
+        for document in documents
+        if str(document.metadata.get("version", "")) != corpus_version
+    ]
+    if mismatched:
+        raise ValueError(f"processed corpus does not match requested version {corpus_version}")
     config_name = str(payload["chunking"])
     config = next((item for item in DEFAULT_CHUNKING_CONFIGS if item.name == config_name), None)
     if config is None:
         raise ValueError(f"unknown chunking configuration: {config_name}")
     chunks = [chunk for document in documents for chunk in Chunker().chunk(document, config)]
+    if not chunks:
+        raise ValueError("processed corpus produced no chunks")
     repository = ChunkRepository(engine)
     await repository.upsert_chunks(chunks)
     provider_name = str(payload["embedding_provider"])
@@ -56,6 +69,7 @@ async def _build_index(engine: Any, payload: dict[str, object]) -> dict[str, obj
         await repository.store_embeddings(
             config_name, provider_name, [chunk.id for chunk in batch], vectors
         )
+    removed = await repository.delete_stale_chunks(config_name, [chunk.id for chunk in chunks])
     await repository.rebuild_hnsw(
         config_name,
         provider_name,
@@ -63,7 +77,12 @@ async def _build_index(engine: Any, payload: dict[str, object]) -> dict[str, obj
         int(str(payload.get("hnsw_m", 16))),
         int(str(payload.get("ef_construction", 64))),
     )
-    return {"chunks": len(chunks), "documents": len(documents), "embedding_provider": provider_name}
+    return {
+        "chunks": len(chunks),
+        "documents": len(documents),
+        "stale_chunks_removed": removed,
+        "embedding_provider": provider_name,
+    }
 
 
 async def _evaluate(engine: Any, payload: dict[str, object]) -> dict[str, object]:
@@ -76,7 +95,7 @@ async def _evaluate(engine: Any, payload: dict[str, object]) -> dict[str, object
     config = load_experiment(config_path)
     requested_split = str(payload.get("split", config.split))
     if config.split != requested_split:
-        config = config.model_copy(update={"split": requested_split})
+        config = type(config).model_validate({**config.model_dump(), "split": requested_split})
     dataset_path = settings.data_directory / "evaluation" / f"{config.split}.jsonl"
     manifest = (
         settings.data_directory / "evaluation" / "test.manifest.json"
@@ -84,6 +103,8 @@ async def _evaluate(engine: Any, payload: dict[str, object]) -> dict[str, object
         else None
     )
     queries = validate_dataset(dataset_path, require_verified=True, manifest_path=manifest)
+    if any(query.split != config.split for query in queries):
+        raise ValueError(f"{config.split} dataset contains records from another split")
     queries = await ChunkRepository(engine).project_judgments(queries, config.chunking)
     embedder = _embedder(config.embedding_provider) if config.strategy != "lexical" else None
     reranker: Reranker | None = None
@@ -100,6 +121,7 @@ async def _evaluate(engine: Any, payload: dict[str, object]) -> dict[str, object
         rrf_k=config.rrf_k,
         candidate_depth=config.candidate_depth,
         distance=config.distance,
+        rerank_candidates=config.rerank_candidates,
     )
     result = await EvaluationRunner(retriever).run(queries, top_k=config.top_k)
     output = settings.reports_directory / config.name
@@ -113,8 +135,14 @@ async def _evaluate(engine: Any, payload: dict[str, object]) -> dict[str, object
         "cost_usd": 0.0,
     }
     markdown, html = write_report([row], output)
+    corpus_manifest = json.loads(
+        (settings.data_directory / "corpus-manifest.json").read_text(encoding="utf-8")
+    )
+    corpus_sha256 = corpus_manifest.get("sha256")
+    if not isinstance(corpus_sha256, str) or len(corpus_sha256) != 64:
+        raise ValueError("corpus manifest is missing a SHA-256 checksum")
     metadata = reproducibility_metadata(
-        "see-corpus-manifest", dataset_digest(dataset_path), config.model_dump()
+        corpus_sha256, dataset_digest(dataset_path), config.model_dump()
     )
     try:
         run_id = log_evaluation(

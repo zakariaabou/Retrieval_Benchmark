@@ -82,13 +82,11 @@ def create_app(service: BenchmarkService | None = None) -> FastAPI:
 
 
 def service_from_environment() -> BenchmarkService:
-    import os
-
-    if os.getenv("RB_USE_DATABASE", "false").lower() not in {"1", "true", "yes"}:
-        return InMemoryService()
     from retrieval_benchmark.settings import get_settings
 
     settings = get_settings()
+    if not settings.use_database:
+        return InMemoryService()
     from retrieval_benchmark.database import PostgresBenchmarkService, create_engine
     from retrieval_benchmark.providers import CachedEmbedder, HashEmbeddingCache, LocalBGEEmbedder
 

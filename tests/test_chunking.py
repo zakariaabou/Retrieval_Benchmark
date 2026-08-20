@@ -26,6 +26,7 @@ def test_structural_chunks_preserve_heading_metadata() -> None:
         source_uri="https://example.test/doc",
         title="Doc",
         text="Install Python first. Then create a virtual environment.",
+        module="venv",
         sections=[
             {"heading": "Installation", "text": "Install Python first."},
             {"heading": "Usage", "text": "Then create a virtual environment."},
@@ -39,3 +40,4 @@ def test_structural_chunks_preserve_heading_metadata() -> None:
 
     assert {chunk.heading for chunk in chunks} == {"Installation", "Usage"}
     assert all(chunk.document_id == doc.id for chunk in chunks)
+    assert all(chunk.metadata["module"] == "venv" for chunk in chunks)

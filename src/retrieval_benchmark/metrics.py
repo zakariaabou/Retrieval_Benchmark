@@ -11,10 +11,13 @@ def _dcg(relevances: Sequence[int]) -> float:
 def evaluate_ranking(
     retrieved: Sequence[str], judgments: Mapping[str, int], ks: Iterable[int] = (1, 5, 10, 20)
 ) -> dict[str, float]:
+    # A chunk can only be relevant once. De-duplicate defensively so malformed
+    # provider output cannot inflate recall above 1.0 or distort rank metrics.
+    ranking = list(dict.fromkeys(retrieved))
     relevant = {identifier for identifier, grade in judgments.items() if grade > 0}
     result: dict[str, float] = {}
     for k in ks:
-        top = list(retrieved[:k])
+        top = ranking[:k]
         hits = sum(identifier in relevant for identifier in top)
         result[f"recall@{k}"] = hits / len(relevant) if relevant else 0.0
         result[f"precision@{k}"] = hits / k
@@ -27,7 +30,7 @@ def evaluate_ranking(
     reciprocal_rank = next(
         (
             1.0 / rank
-            for rank, identifier in enumerate(retrieved, start=1)
+            for rank, identifier in enumerate(ranking, start=1)
             if identifier in relevant
         ),
         0.0,

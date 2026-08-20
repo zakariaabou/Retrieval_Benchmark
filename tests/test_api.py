@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from retrieval_benchmark.api import create_app
+from retrieval_benchmark.api import create_app, service_from_environment
 from retrieval_benchmark.services import InMemoryService
 
 
@@ -42,3 +42,15 @@ def test_missing_run_and_evaluation_job() -> None:
     )
     assert response.status_code == 202
     assert client.post("/evaluate", json={"configuration": "../secrets.yaml"}).status_code == 422
+
+
+def test_service_selection_uses_parsed_settings(monkeypatch) -> None:
+    import retrieval_benchmark.settings as settings_module
+
+    class SettingsStub:
+        use_database = False
+
+    monkeypatch.setenv("RB_USE_DATABASE", "true")
+    monkeypatch.setattr(settings_module, "get_settings", lambda: SettingsStub())
+
+    assert isinstance(service_from_environment(), InMemoryService)

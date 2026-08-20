@@ -47,3 +47,35 @@ def test_freeze_is_canonical_and_detects_mutation(tmp_path: Path) -> None:
     frozen.write_text(frozen.read_text(encoding="utf-8") + " ", encoding="utf-8")
     with pytest.raises(ValueError, match="checksum"):
         validate_dataset(frozen, manifest_path=manifest)
+
+
+def test_freeze_allows_unreviewed_dev_records(tmp_path: Path) -> None:
+    source = tmp_path / "queries.jsonl"
+    source.write_text(
+        json.dumps(_record("dev-draft", "dev", "draft"))
+        + "\n"
+        + json.dumps(_record("test-verified", "test"))
+        + "\n",
+        encoding="utf-8",
+    )
+
+    frozen = tmp_path / "frozen" / "test.jsonl"
+    manifest = tmp_path / "manifests" / "test.json"
+    freeze_test_set(source, frozen, manifest)
+
+    assert [record.id for record in validate_dataset(frozen, manifest_path=manifest)] == [
+        "test-verified"
+    ]
+
+
+def test_manifest_rejects_records_from_wrong_split(tmp_path: Path) -> None:
+    path = tmp_path / "test.jsonl"
+    path.write_text(json.dumps(_record("q1", "dev")) + "\n", encoding="utf-8")
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        json.dumps({"sha256": dataset_digest(path), "count": 1, "split": "test"}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="split"):
+        validate_dataset(path, manifest_path=manifest)
