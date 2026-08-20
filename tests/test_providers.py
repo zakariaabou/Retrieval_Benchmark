@@ -24,3 +24,14 @@ def test_embedding_cache_avoids_duplicate_provider_calls(tmp_path) -> None:
         assert provider.calls == 1
 
     asyncio.run(run())
+
+
+def test_embedding_cache_deduplicates_repeated_text_within_batch(tmp_path) -> None:
+    async def run() -> None:
+        provider = FakeEmbedder()
+        cached = CachedEmbedder(provider, HashEmbeddingCache(tmp_path / "cache.json"))
+
+        assert await cached.embed(["same", "same"]) == [[4.0, 0.0], [4.0, 0.0]]
+        assert provider.calls == 1
+
+    asyncio.run(run())

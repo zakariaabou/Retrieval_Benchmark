@@ -111,8 +111,14 @@ class ExperimentConfig(BaseModel):
     def protect_test_split(self) -> ExperimentConfig:
         if self.split == "test" and self.tuning:
             raise ValueError("tuning is forbidden on the test split")
+        if self.strategy in {"hybrid", "hybrid_rerank"} and self.candidate_depth < self.top_k:
+            raise ValueError("candidate_depth cannot be smaller than top_k")
         if self.strategy == "hybrid_rerank" and self.reranker_provider == "none":
             raise ValueError("hybrid_rerank requires a reranker_provider")
+        if self.strategy == "hybrid_rerank" and self.rerank_candidates < self.top_k:
+            raise ValueError("rerank_candidates cannot be smaller than top_k")
+        if self.strategy == "hybrid_rerank" and self.rerank_candidates > self.candidate_depth:
+            raise ValueError("rerank_candidates cannot exceed candidate_depth")
         return self
 
 

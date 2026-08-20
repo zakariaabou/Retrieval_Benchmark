@@ -18,7 +18,9 @@ def reciprocal_rank_fusion(rankings: Sequence[Sequence[str]], rrf_k: int = 60) -
     seen: set[str] = set()
     positions: list[dict[str, int]] = []
     for ranking in rankings:
-        position = {identifier: rank for rank, identifier in enumerate(ranking, start=1)}
+        position: dict[str, int] = {}
+        for rank, identifier in enumerate(ranking, start=1):
+            position.setdefault(identifier, rank)
         positions.append(position)
         for identifier in ranking:
             if identifier not in seen:
@@ -36,4 +38,5 @@ def reciprocal_rank_fusion(rankings: Sequence[Sequence[str]], rrf_k: int = 60) -
         )
         for identifier in all_ids
     ]
-    return sorted(fused, key=lambda item: (-item.score, all_ids.index(item.id)))
+    input_order = {identifier: index for index, identifier in enumerate(all_ids)}
+    return sorted(fused, key=lambda item: (-item.score, input_order[item.id]))

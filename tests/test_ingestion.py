@@ -31,6 +31,16 @@ def test_parser_extracts_title_sections_code_and_canonical_url() -> None:
     assert any(section["heading"] == "API" for section in doc.sections)
 
 
+def test_parser_does_not_duplicate_nested_list_content() -> None:
+    html = """
+    <main><h1>Lists</h1><ul><li>Parent<ul><li>Child</li></ul></li></ul></main>
+    """
+
+    doc = PythonDocsParser("3.14.6").parse_html(html, "library/lists.html")
+
+    assert doc.text.split().count("Child") == 1
+
+
 def test_directory_round_trip_and_verified_download(tmp_path: Path, monkeypatch) -> None:
     html_root = tmp_path / "html"
     html_root.mkdir()

@@ -26,5 +26,12 @@ def test_empty_judgments_are_safe() -> None:
     }
 
 
+def test_duplicate_results_cannot_inflate_recall() -> None:
+    result = evaluate_ranking(["a", "a", "b"], {"a": 1, "b": 1}, ks=(2,))
+
+    assert result["recall@2"] == 1.0
+    assert result["precision@2"] == 1.0
+
+
 def test_aggregate_metrics_computes_means() -> None:
     assert aggregate_metrics([{"mrr": 1.0}, {"mrr": 0.0}]) == {"mrr": 0.5}

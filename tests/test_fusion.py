@@ -16,3 +16,10 @@ def test_rrf_rejects_invalid_constant() -> None:
         assert "positive" in str(exc)
     else:
         raise AssertionError("expected ValueError")
+
+
+def test_rrf_uses_first_occurrence_of_duplicate_result() -> None:
+    fused = reciprocal_rank_fusion([["a", "b", "a"]])
+
+    assert fused[0].id == "a"
+    assert fused[0].component_ranks == [1]

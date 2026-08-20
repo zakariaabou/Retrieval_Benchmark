@@ -135,7 +135,9 @@ class ChunkRepository:
             "(:id, :document_id, :chunking, :content, "
             ":token_start, :token_end, :source_uri, :heading, :module, CAST(:metadata AS jsonb)) "
             "ON CONFLICT (chunking, id) DO UPDATE SET content=EXCLUDED.content, "
-            "metadata=EXCLUDED.metadata"
+            "document_id=EXCLUDED.document_id, token_start=EXCLUDED.token_start, "
+            "token_end=EXCLUDED.token_end, source_uri=EXCLUDED.source_uri, "
+            "heading=EXCLUDED.heading, module=EXCLUDED.module, metadata=EXCLUDED.metadata"
         )
         values = [
             {
@@ -156,6 +158,20 @@ class ChunkRepository:
             if values:
                 await connection.execute(statement, values)
         return len(values)
+
+    async def delete_stale_chunks(self, chunking: str, current_ids: list[str]) -> int:
+        """Remove rows from an older corpus build after the replacement is fully embedded."""
+        from sqlalchemy import text
+
+        statement = text(
+            "DELETE FROM chunks WHERE chunking=:chunking "
+            "AND NOT (id = ANY(CAST(:current_ids AS text[])))"
+        )
+        async with self.engine.begin() as connection:
+            result = await connection.execute(
+                statement, {"chunking": chunking, "current_ids": current_ids}
+            )
+        return int(result.rowcount or 0)
 
     async def store_embeddings(
         self, chunking: str, provider: str, ids: list[str], vectors: list[list[float]]
@@ -292,6 +308,7 @@ class PostgresBenchmarkService:
             self.retriever.candidate_depth,
             self.retriever.ef_search,
             self.retriever.distance,
+            self.retriever.rerank_candidates,
         )
         results = await scoped.search(request.query, request.top_k, request.filters)
         return SearchResponse(
